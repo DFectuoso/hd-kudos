@@ -4,8 +4,26 @@ from google.appengine.api import urlfetch, memcache, users
 from google.appengine.api.labs import taskqueue
 from django.utils import simplejson
 import datetime
+import urllib,keys
 
 MONTHLY_POINTS = 10
+#Be sure to have a file called keys.py
+#With: logs_api = "LOGS API"
+logs_url = "http://hackerdojo-log-dfect.appspot.com/"
+
+# This notify method was taken from commitify @ http://github.com/whatcould/commitify/blob/master/main.py =D
+def send_to_logs(kudos_number, from_user, to_user,reason):
+    params = {'key':keys.logs_api, 'name':'Kudos','body': "%s just gave %s kudos to %s because:%s" % (from_user, kudos_number, to_user, reason)}
+    count = 0
+    while True:
+        try: 
+            return urlfetch.fetch(logs_url + 'api', method='POST', payload=urllib.urlencode(params))
+        except urlfetch.DownloadError: 
+            count += 1
+            logging.debug('Error posting to hd-logs ')
+            if count == 3:
+                raise
+
 
 # Hacker Dojo Domain API helper with caching
 def dojo(path, cache_ttl=3600):
@@ -144,6 +162,7 @@ class MainHandler(webapp.RequestHandler):
             reason =self.request.get('reason'),
             )
         kudos.put()
+        send_to_logs(kudos_to_give,fullname(username(kudos.user_from)),fullname(username(kudos.user_to)),self.request.get('reason'))
         # if you try to give yourself kudos, you lose the points, as this put overwrites to_profile.put
         from_profile.to_give -= kudos_to_give
         from_profile.gave_this_month += kudos_to_give
