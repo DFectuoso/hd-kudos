@@ -48,6 +48,14 @@ def fullname(username):
     else:
         return fullname
 
+class HDLogsWorker(webapp.RequestHandler):
+    def post(self):
+        kudos_number = self.request.get('kudos_number')
+        from_user = self.request.get('from_user')
+        to_user = self.request.get('to_user')
+        reason = self.request.get('reason')
+        send_to_logs(kudos_number, from_user, to_user, reason)
+
 class UserWorker(webapp.RequestHandler):
     def post(self):
         username = self.request.get('username')
@@ -162,12 +170,12 @@ class MainHandler(webapp.RequestHandler):
             reason =self.request.get('reason'),
             )
         kudos.put()
-        send_to_logs(kudos_to_give,fullname(username(kudos.user_from)),fullname(username(kudos.user_to)),self.request.get('reason'))
         # if you try to give yourself kudos, you lose the points, as this put overwrites to_profile.put
         from_profile.to_give -= kudos_to_give
         from_profile.gave_this_month += kudos_to_give
         from_profile.gave_total += kudos_to_give
         from_profile.put()
+        taskqueue.add(url='/worker/hdlogs', params={'kudos_number':kudos_to_give,'from_user':fullname(username(kudos.user_from)),'to_user':fullname(username(kudos.user_to)),'reason': kudos.reason})
         self.redirect('/kudos/%s' % kudos.key().id())
 
 class CertificateHandler(webapp.RequestHandler):
@@ -202,6 +210,7 @@ def main():
         ('/', MainHandler), 
         ('/kudos/(\d+)', CertificateHandler),
         ('/reset_points', CronHandler),
+        ('/worker/hdlogs', HDLogsWorker),
         ('/worker/user', UserWorker), ], debug=True)
     util.run_wsgi_app(application)
 
